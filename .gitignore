@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+coverage/
+dist/
+
+# Env files
+.env
+.env.*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS / misc
+.DS_Store
+Thumbs.db

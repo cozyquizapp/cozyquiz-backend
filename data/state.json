@@ -1,0 +1,22 @@
+{
+  "phase": "LOBBY",
+  "currentCategory": null,
+  "roundIndex": 0,
+  "stakes": {},
+  "categoryPot": 0,
+  "carryRound": 0,
+  "submissions": {},
+  "joinCode": "773065",
+  "teamLimit": 5,
+  "timerEndsAt": 1757612861277,
+  "timerDuration": 60,
+  "timerPausedRemaining": 0,
+  "elch": {
+    "category": null,
+    "used": [],
+    "buzzOrder": [],
+    "buzzLocked": false,
+    "exhausted": false
+  },
+  "raceMode": "POST"
+}
