@@ -149,6 +149,7 @@ function serializeState(){
     categoryPot: state.categoryPot,
     carryRound: state.carryRound,
     submissions: state.submissions,
+    roundResolved: isCurrentRoundResolved(),
   joinCode: state.joinCode,
   teamLimit: state.teamLimit,
 
@@ -166,6 +167,24 @@ function serializeState(){
   };
 }
 function serializeTeams(){ return Array.from(teams.values()).map(t=>({...t})); }
+
+function currentRoundKey(){
+  if (state.currentCategory == null) return null;
+  return :;
+}
+function isCurrentRoundResolved(){
+  const key = currentRoundKey();
+  return key ? !!state.resolvedRounds[key] : false;
+}
+function setCurrentRoundResolved(flag){
+  const key = currentRoundKey();
+  if (!key) return;
+  if (flag) {
+    state.resolvedRounds[key] = true;
+  } else {
+    delete state.resolvedRounds[key];
+  }
+}
 
 function emitState(io){ io.emit('state:update', serializeState()); }
 function emitTeams(io){ io.emit('teamsUpdated', serializeTeams()); }
@@ -329,29 +348,62 @@ export const game = {
     markDirty();
   },
 
-  adminResolveRound(io, { winnerId }) {
-    if(state.phase!=='CATEGORY') return;
-    const payout = Math.floor(state.categoryPot / ROUNDS_PER_CATEGORY); // CP/3
-    if(winnerId){
-      const t = teams.get(winnerId);
-      if(t){
-  const gain = (payout + state.carryRound);
-  t.coins += gain;
-  state.carryRound = 0;
-  // Rundensieg zählen (legacy) + Earnings verbuchen
-  state.roundWins[winnerId] = (state.roundWins[winnerId]||0) + 1;
-  state.categoryEarnings[winnerId] = (state.categoryEarnings[winnerId]||0) + gain;
-      }
+  adminResolveRound(io, { winnerId, winnerIds }) {
+    if (state.phase !== 'CATEGORY') return;
+    if (isCurrentRoundResolved()) return;
+    const basePayout = Math.floor(state.categoryPot / ROUNDS_PER_CATEGORY);
+    const totalPot = basePayout + state.carryRound;
+
+    const arrayIds = Array.isArray(winnerIds) ? winnerIds : [];
+    const uniqueIds = [...new Set(arrayIds.filter(id => id !== null && id !== undefined).map(id => String(id)))].filter(id => teams.has(id));
+
+    let resolved = false;
+    let finalWinnerId = null;
+    const distributed = [];
+
+    if (uniqueIds.length > 1) {
+      const share = Math.floor(totalPot / uniqueIds.length);
+      const remainder = totalPot % uniqueIds.length;
+      uniqueIds.forEach((id, idx) => {
+        const team = teams.get(id);
+        if (!team) return;
+        const gain = share + (idx < remainder ? 1 : 0);
+        team.coins += gain;
+        state.roundWins[id] = (state.roundWins[id] || 0) + 1;
+        state.categoryEarnings[id] = (state.categoryEarnings[id] || 0) + gain;
+        distributed.push({ id, gain });
+      });
+      state.carryRound = 0;
+      resolved = uniqueIds.length > 0;
     } else {
-      state.carryRound += payout; // rollt
+      const candidate = uniqueIds.length === 1 ? uniqueIds[0] : (winnerId !== null && winnerId !== undefined ? String(winnerId) : null);
+      if (candidate && teams.has(candidate)) {
+        const team = teams.get(candidate);
+        const gain = totalPot;
+        team.coins += gain;
+        state.carryRound = 0;
+        state.roundWins[candidate] = (state.roundWins[candidate] || 0) + 1;
+        state.categoryEarnings[candidate] = (state.categoryEarnings[candidate] || 0) + gain;
+        distributed.push({ id: candidate, gain });
+        finalWinnerId = candidate;
+        resolved = true;
+      } else if (winnerId === null) {
+        state.carryRound += basePayout;
+        resolved = true;
+      }
     }
-    // --- NEU: Ergebnis-Event für Teams ---
+
+    if (!resolved) return;
+
+    setCurrentRoundResolved(true);
     io.emit('result:announce', {
-      winnerId,
+      winnerId: finalWinnerId,
+      winnerIds: uniqueIds.length > 0 ? uniqueIds : (finalWinnerId ? [finalWinnerId] : []),
       category: state.currentCategory,
       roundIndex: state.roundIndex,
-      payout,
+      payout: basePayout,
       carry: state.carryRound,
+      distributed,
     });
     emitAll(io);
     markDirty();
@@ -372,6 +424,7 @@ export const game = {
       }
     }
 
+    setCurrentRoundResolved(false);
     emitState(io);
     markDirty();
   },
@@ -386,6 +439,7 @@ export const game = {
       state.elch.buzzLocked = false;
       if (!state.elch.exhausted) state.elch.category = null;
     }
+    setCurrentRoundResolved(false);
     emitState(io);
     markDirty();
   },
@@ -412,6 +466,7 @@ export const game = {
     state.submissions = {};
     state.roundWins = {};
     state.categoryEarnings = {};
+    state.resolvedRounds = Object.create(null);
 
     // Elch komplett zurücksetzen
     state.elch = {
@@ -438,6 +493,7 @@ export const game = {
     state.submissions = {};
     state.roundWins = {};
     state.categoryEarnings = {};
+    state.resolvedRounds = Object.create(null);
     state.elch = { category:null, used:[], buzzOrder:[], buzzLocked:false, exhausted:false };
     emitAll(io);
     markDirty();
