@@ -80,6 +80,7 @@ const state = {
   roundWins: {},
   // 💰 Kategorie-Earnings (coin-Gewinne pro Team nur für diese Kategorie)
   categoryEarnings: {},
+  resolvedRounds: Object.create(null),
 };
 
 const teams = new Map();     // teamId -> { id,name,avatar,coins,quizJoker,joinedAt }
@@ -344,6 +345,7 @@ export const game = {
     const jokerExtra = Object.values(state.stakes).reduce((a,s)=>a+(s.useJoker?(s.stake||0):0),0);
     state.categoryPot = sumEinsatz + jokerExtra + 3;
     state.phase = 'CATEGORY';
+    setCurrentRoundResolved(false);
     emitAll(io);
     markDirty();
   },
