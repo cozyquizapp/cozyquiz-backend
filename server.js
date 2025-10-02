@@ -1,5 +1,4 @@
-// backend/server.js
-import express from 'express';
+﻿import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import fs from 'fs';
@@ -54,9 +53,9 @@ const state = {
   categoryPot: 0,
   carryRound: 0,
   submissions: {},
-  // LOBBY / Join-Code für QR (Produktion)
+  // LOBBY / Join-Code fÃ¼r QR (Produktion)
   joinCode: null,            // z.B. '482913'
-  // Anzahl aktiver Teams (erste N join order) – konfigurierbar (2..5)
+  // Anzahl aktiver Teams (erste N join order) â€“ konfigurierbar (2..5)
   teamLimit: 3,
 
   // Timer
@@ -64,7 +63,7 @@ const state = {
   timerDuration: 0,          // seconds (duration of current/last started countdown)
   timerPausedRemaining: 0,   // seconds remaining when paused (0 when running or reset)
 
-  // 🦌 Elch – Kategoriesprache & Buzz
+  // ðŸ¦Œ Elch â€“ Kategoriesprache & Buzz
   elch: {
     category: null,          // z.B. "Tiere"
     used: [],                // bereits gezogene Sprachen
@@ -73,20 +72,41 @@ const state = {
     exhausted: false,        // true = alle Sprachen verbraucht
   },
 
-  // 🏁 Scoreboard-Race (PRE → RACE → POST)
+  // ðŸ Scoreboard-Race (PRE â†’ RACE â†’ POST)
   raceMode: 'POST',          // 'PRE' | 'RACE' | 'POST'
 
-  // 📊 Kategorie-Rundensiege (teamId -> count) während laufender Kategorie
+  // ðŸ“Š Kategorie-Rundensiege (teamId -> count) wÃ¤hrend laufender Kategorie
   roundWins: {},
-  // 💰 Kategorie-Earnings (coin-Gewinne pro Team nur für diese Kategorie)
+  resolvedRounds: Object.create(null),
+  // ðŸ’° Kategorie-Earnings (coin-Gewinne pro Team nur fÃ¼r diese Kategorie)
   categoryEarnings: {},
 };
 
 const teams = new Map();     // teamId -> { id,name,avatar,coins,quizJoker,joinedAt }
 
-// Verfügbare Avatar-Dateipfade (müssen mit frontend/public/avatars übereinstimmen)
+// VerfÃ¼gbare Avatar-Dateipfade (mÃ¼ssen mit frontend/public/avatars Ã¼bereinstimmen)
 const AVATAR_POOL = [
-  '/avatars/seekuh.png','/avatars/waschbaer.png','/avatars/roter_panda.png','/avatars/igel.png','/avatars/faultier.png','/avatars/einhorn.png','/avatars/eichhoernchen.png','/avatars/capybara.png','/avatars/wombat.png','/avatars/koala.png','/avatars/alpaka.png','/avatars/pinguin.png','/avatars/otter.png','/avatars/giraffe.png','/avatars/eisbaer.png','/avatars/drache.png','/avatars/katze.png','/avatars/hund.png'
+  '/avatars/seekuh.png',
+  '/avatars/waschbaer.png',
+  '/avatars/roter_panda.png',
+  '/avatars/igel.png',
+  '/avatars/faultier.png',
+  '/avatars/einhorn.png',
+  '/avatars/eichhoernchen.png',
+  '/avatars/capybara.png',
+  '/avatars/wombat.png',
+  '/avatars/koala.png',
+  '/avatars/alpaka.png',
+  '/avatars/pinguin.png',
+  '/avatars/otter.png',
+  '/avatars/giraffe.png',
+  '/avatars/eisbaer.png',
+  '/avatars/drache.png',
+  '/avatars/katze.png',
+  '/avatars/hund.png',
+  '/avatars/teamjenny.png',
+  '/avatars/teamjana.png',
+  '/avatars/teammartin.png'
 ];
 
 /* =============================
@@ -158,10 +178,10 @@ function serializeState(){
     timerPausedRemaining: state.timerPausedRemaining,
     serverNow: Date.now(),
 
-    // 🦌 Elch
+    // ðŸ¦Œ Elch
     elch: state.elch,
 
-    // 🏁 Race
+    // ðŸ Race
     raceMode: state.raceMode,
   };
 }
@@ -197,7 +217,7 @@ export const game = {
       if (isValid && !taken.has(avatar)) {
         finalAvatar = avatar;
       } else {
-        // Freien Avatar automatisch wählen
+        // Freien Avatar automatisch wÃ¤hlen
         finalAvatar = AVATAR_POOL.find(a => !taken.has(a)) || AVATAR_POOL[0];
       }
       teams.set(id, {
@@ -225,7 +245,7 @@ export const game = {
     if(state.phase !== 'STAKE') return;
     const id = ensureTeam(socket);
     const t = teams.get(id); if(!t) return;
-  // Dynamische Stakes: bei mehr als 2 Teams zusätzlich 9 erlauben
+  // Dynamische Stakes: bei mehr als 2 Teams zusÃ¤tzlich 9 erlauben
   const dynamicValid = state.teamLimit > 2 ? [0,3,6,9] : [0,3,6];
   let s = Number(stake);
   if(!dynamicValid.includes(s)) s = 0;
@@ -237,25 +257,25 @@ export const game = {
     markDirty();
   },
 
-  // submissions – generisch; für Elch gibt es Spezialpfad (Buzz)
+  // submissions â€“ generisch; fÃ¼r Elch gibt es Spezialpfad (Buzz)
   teamSubmit(io, socket, category, payload){
     if(state.phase!=='CATEGORY' || state.currentCategory!==category) return;
     const id = ensureTeam(socket);
 
-    // 🦌 ELCH: nur Buzz-Logik, KEIN Textspeichern
+    // ðŸ¦Œ ELCH: nur Buzz-Logik, KEIN Textspeichern
     if (category === 'Elch' && payload && payload.buzz) {
       if (!state.elch.category) return; // noch keine Sprache gezogen
       const already = state.elch.buzzOrder.some(e => e.teamId === id);
       if (!state.elch.buzzLocked && !already) {
         state.elch.buzzOrder.push({ teamId: id, ts: Date.now() });
-        // erster Buzz → sofort locken
+        // erster Buzz â†’ sofort locken
         if (state.elch.buzzOrder.length === 1) state.elch.buzzLocked = true;
         emitState(io);
       }
       return;
     }
 
-    // Standard-Submit für alle anderen Kategorien
+    // Standard-Submit fÃ¼r alle anderen Kategorien
     const prev = state.submissions[id] || {};
     const next = { ...prev, ...payload, ts: Date.now() };
     state.submissions[id] = next;
@@ -290,7 +310,7 @@ export const game = {
   state.roundWins = {};
   state.categoryEarnings = {};
 
-    // 🦌 Elch init, falls Elch gestartet wird
+    // ðŸ¦Œ Elch init, falls Elch gestartet wird
     state.elch = {
       category: null,
       used: [],
@@ -314,7 +334,7 @@ export const game = {
   },
 
   adminLockStakes(io){
-    // Einsätze abbuchen & Joker verbrauchen
+    // EinsÃ¤tze abbuchen & Joker verbrauchen
     for(const [tid, s] of Object.entries(state.stakes)){
       const t = teams.get(tid); if(!t) continue;
       t.coins = Math.max(0, t.coins - (s.stake||0)); // Einsatz
@@ -338,14 +358,14 @@ export const game = {
   const gain = (payout + state.carryRound);
   t.coins += gain;
   state.carryRound = 0;
-  // Rundensieg zählen (legacy) + Earnings verbuchen
+  // Rundensieg zÃ¤hlen (legacy) + Earnings verbuchen
   state.roundWins[winnerId] = (state.roundWins[winnerId]||0) + 1;
   state.categoryEarnings[winnerId] = (state.categoryEarnings[winnerId]||0) + gain;
       }
     } else {
       state.carryRound += payout; // rollt
     }
-    // --- NEU: Ergebnis-Event für Teams ---
+    // --- NEU: Ergebnis-Event fÃ¼r Teams ---
     io.emit('result:announce', {
       winnerId,
       category: state.currentCategory,
@@ -362,11 +382,11 @@ export const game = {
     state.roundIndex = Math.min(ROUNDS_PER_CATEGORY-1, state.roundIndex+1);
     state.submissions = {}; // neue Runde
 
-    // 🦌 Elch: neue Runde → Buzz zurücksetzen, Buzz freigeben, Kategorie bleibt (Admin kann neu ziehen)
+    // ðŸ¦Œ Elch: neue Runde â†’ Buzz zurÃ¼cksetzen, Buzz freigeben, Kategorie bleibt (Admin kann neu ziehen)
     if (state.currentCategory === 'Elch') {
       state.elch.buzzOrder = [];
       state.elch.buzzLocked = false;
-      // NEU: Sprache pro Runde neu ziehen lassen → aktuelle Sprache leeren (solange nicht exhausted)
+      // NEU: Sprache pro Runde neu ziehen lassen â†’ aktuelle Sprache leeren (solange nicht exhausted)
       if (!state.elch.exhausted) {
         state.elch.category = null; // Admin klickt erneut "Sprache ziehen"
       }
@@ -380,7 +400,7 @@ export const game = {
     if(state.phase!=='CATEGORY') return;
     state.roundIndex = Math.max(0, state.roundIndex-1);
     state.submissions = {};
-    // Elch-Buzz leeren um Verwirrung zu vermeiden & Sprache freigeben (erneut ziehen möglich)
+    // Elch-Buzz leeren um Verwirrung zu vermeiden & Sprache freigeben (erneut ziehen mÃ¶glich)
     if (state.currentCategory === 'Elch') {
       state.elch.buzzOrder = [];
       state.elch.buzzLocked = false;
@@ -394,7 +414,7 @@ export const game = {
     // Zusammenfassung vor Reset merken
     const summary = {
       category: state.currentCategory,
-      // coins gewonnen pro Team (nur Gewinne, Einsätze nicht berücksichtigt)
+      // coins gewonnen pro Team (nur Gewinne, EinsÃ¤tze nicht berÃ¼cksichtigt)
       earnings: { ...state.categoryEarnings },
       pot: state.categoryPot,
       roundsPlayed: state.roundIndex + 1,
@@ -413,7 +433,7 @@ export const game = {
     state.roundWins = {};
     state.categoryEarnings = {};
 
-    // Elch komplett zurücksetzen
+    // Elch komplett zurÃ¼cksetzen
     state.elch = {
       category: null,
       used: [],
@@ -459,7 +479,7 @@ export const game = {
       state.timerPausedRemaining = remaining;
     }
     state.timerEndsAt = null;
-  // behalten, damit Resume möglich
+  // behalten, damit Resume mÃ¶glich
     emitState(io);
     markDirty();
   },
@@ -481,7 +501,7 @@ export const game = {
     }
   },
 
-  // ===== 🦌 ELCH ADMIN =====
+  // ===== ðŸ¦Œ ELCH ADMIN =====
   adminElchDraw(io){
     if (state.currentCategory !== 'Elch') return;
     const pool = ELCH_LANGS.filter(x => !state.elch.used.includes(x));
@@ -493,7 +513,7 @@ export const game = {
       state.elch.category = pick;
       state.elch.used.push(pick);
       state.elch.exhausted = (state.elch.used.length >= ELCH_LANGS.length);
-      // neue „Sprache“ → Buzz leeren & freigeben
+      // neue â€žSpracheâ€œ â†’ Buzz leeren & freigeben
       state.elch.buzzOrder = [];
       state.elch.buzzLocked = false;
     }
@@ -517,7 +537,7 @@ export const game = {
     emitState(io);
   },
 
-  // ===== 🏁 RACE MODE (Scoreboard) =====
+  // ===== ðŸ RACE MODE (Scoreboard) =====
   adminRaceSet(io, { mode }){
     const m = String(mode||'').toUpperCase();
     if (!['PRE','RACE','POST','FINAL'].includes(m)) return;
@@ -560,11 +580,11 @@ export const game = {
     state.raceMode = 'POST';
   state.joinCode = null;
   // Optional: alle Teams rauswerfen, damit Slots wieder frei werden
-  // (statt nur Coins/Joker zurücksetzen)
+  // (statt nur Coins/Joker zurÃ¼cksetzen)
   teams.clear();
     // Inform clients about the hard reset so they can re-request/join
     io.emit('server:reset');
-  // Falls du stattdessen nur zurücksetzen willst, entferne die Zeile oben und nutze untenstehenden Loop
+  // Falls du stattdessen nur zurÃ¼cksetzen willst, entferne die Zeile oben und nutze untenstehenden Loop
   // for(const t of teams.values()){ t.coins = 24; t.quizJoker = 1; }
     emitAll(io);
     markDirty();
@@ -575,7 +595,7 @@ export const game = {
    Socket.IO Routing
 ================================*/
 io.on('connection', (socket) => {
-  try { console.log(`🔌 Socket connected: ${socket.id} from ${socket.handshake.address}`); } catch(e){}
+  try { console.log(`ðŸ”Œ Socket connected: ${socket.id} from ${socket.handshake.address}`); } catch(e){}
   // Pull
   socket.on('requestState', () => game.sendState(io, socket));
   socket.on('requestTeams', () => game.sendTeams(io, socket));
@@ -591,8 +611,8 @@ io.on('connection', (socket) => {
   socket.on('team:eule:submit',    (p)=> game.teamSubmit(io, socket, 'Eule', p));
   socket.on('team:wal:submit',     (p)=> game.teamSubmit(io, socket, 'Wal', p));
   socket.on('team:elch:buzz',      ()=> game.teamSubmit(io, socket, 'Elch', { buzz:true })); // nur Buzz!
-  socket.on('team:elch:submit',    ()=> {/* ignoriert – Elch antwortet laut */});
-  socket.on('team:baer:submit',    (p)=> game.teamSubmit(io, socket, 'Bär', p));
+  socket.on('team:elch:submit',    ()=> {/* ignoriert â€“ Elch antwortet laut */});
+  socket.on('team:baer:submit',    (p)=> game.teamSubmit(io, socket, 'BÃ¤r', p));
   socket.on('team:fuchs:submit',   (p)=> game.teamSubmit(io, socket, 'Fuchs', p));
 
   // Admin
@@ -612,22 +632,22 @@ io.on('connection', (socket) => {
   socket.on('admin:timer:reset', () => game.adminTimerReset(io));
   socket.on('admin:timer:resume', () => game.adminTimerResume(io));
 
-  // 🦌 Elch (Admin)
+  // ðŸ¦Œ Elch (Admin)
   socket.on('admin:elch:draw',      () => game.adminElchDraw(io));
   socket.on('admin:elch:setLock',   (p) => game.adminElchSetLock(io, p)); // {locked:boolean}
   socket.on('admin:elch:clearBuzz', () => game.adminElchClearBuzz(io));
 
-  // 📊 Scoreboard V2 controls (forward Admin → all clients)
+  // ðŸ“Š Scoreboard V2 controls (forward Admin â†’ all clients)
   socket.on('scoreboard:v2:run',     (p) => io.emit('scoreboard:v2:run', p));
   socket.on('scoreboard:v2:mode',    (p) => io.emit('scoreboard:v2:mode', p));
-  // removed: scoreboard:v2:countup and :replay – CountUp auto-triggers after stacking; replay dropped
+  // removed: scoreboard:v2:countup and :replay â€“ CountUp auto-triggers after stacking; replay dropped
   socket.on('scoreboard:v2:arm',     () => io.emit('scoreboard:v2:arm'));
   socket.on('scoreboard:v2:start',   (p) => io.emit('scoreboard:v2:start', p));
 
-  // 🏁 Race (Scoreboard)
+  // ðŸ Race (Scoreboard)
   socket.on('admin:race:set',   (p) => game.adminRaceSet(io, p));  // {mode:'PRE'|'RACE'|'POST'}
-  socket.on('admin:race:show',  () => game.adminRaceShow(io));     // alias → 'RACE'
-  socket.on('admin:race:hide',  () => game.adminRaceHide(io));     // alias → 'POST'
+  socket.on('admin:race:show',  () => game.adminRaceShow(io));     // alias â†’ 'RACE'
+  socket.on('admin:race:hide',  () => game.adminRaceHide(io));     // alias â†’ 'POST'
   socket.on('admin:race:toggle',() => game.adminRaceToggle(io));   // alias toggle
 
   // Team-Limit setzen
@@ -639,10 +659,10 @@ io.on('connection', (socket) => {
 
 // additional logging for disconnects
 io.on('disconnect', (reason) => {
-  try { console.log('🔌 Socket.IO server disconnect event', reason); } catch(e){}
+  try { console.log('ðŸ”Œ Socket.IO server disconnect event', reason); } catch(e){}
 });
 
-// Timer-Tick für automatische Submits bei Ablauf
+// Timer-Tick fÃ¼r automatische Submits bei Ablauf
 setInterval(() => {
   if (
     state.phase === 'CATEGORY' &&
@@ -651,16 +671,16 @@ setInterval(() => {
   ) {
     // Timer abgelaufen
     state.timerEndsAt = null;
-    // Automatisch alle vorhandenen Antworten als Submission übernehmen (falls nicht schon geschehen)
-    // (Hier: keine neuen Daten, sondern vorhandene submissions bleiben, aber du könntest hier z.B. "locked" setzen)
-    // Optional: Du könntest hier auch ein Feld "locked: true" setzen oder ein Event schicken
+    // Automatisch alle vorhandenen Antworten als Submission Ã¼bernehmen (falls nicht schon geschehen)
+    // (Hier: keine neuen Daten, sondern vorhandene submissions bleiben, aber du kÃ¶nntest hier z.B. "locked" setzen)
+    // Optional: Du kÃ¶nntest hier auch ein Feld "locked: true" setzen oder ein Event schicken
     emitState(io);
   }
 }, 300);
 
 const PORT = Number(process.env.PORT) || 3001;
 
-server.listen(PORT, () => console.log(`✅ Backend auf http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`âœ… Backend auf http://localhost:${PORT}`));
 
 server.on('error', (err) => {
   if (err && err.code === 'EADDRINUSE') {
@@ -698,16 +718,16 @@ app.use((req, res) => {
 });
 
 /* =============================
-   Join-Code (Lobby) – Admin Events
+   Join-Code (Lobby) â€“ Admin Events
 ============================= */
 function genJoinCode(){
-  // 6-stellig, kein führendes 0-only Muster
+  // 6-stellig, kein fÃ¼hrendes 0-only Muster
   let c = String(Math.floor(100000 + Math.random()*900000));
   return c;
 }
 
 io.on('connection', (socket) => {
-  // Admin kann Lobby „armen“: Code erzeugen und an Screen senden
+  // Admin kann Lobby â€žarmenâ€œ: Code erzeugen und an Screen senden
   socket.on('admin:lobby:arm', () => {
     state.joinCode = genJoinCode();
     emitState(io);
@@ -724,3 +744,4 @@ io.on('connection', (socket) => {
     if(state.joinCode) socket.emit('lobby:armed', { code: state.joinCode });
   });
 });
+

@@ -1,4 +1,4 @@
-// Duell-Version: 2 Teams, Coins, Joker, CP=Summe+JokerExtra+3, RoundPayout=CP/3
+﻿// Duell-Version: 2 Teams, Coins, Joker, CP=Summe+JokerExtra+3, RoundPayout=CP/3
 
 const VALID_STAKES = [0, 3, 6];
 const ROUNDS_PER_CATEGORY = 3;
@@ -16,6 +16,7 @@ const state = {
   // NEW: Timer
   timerEndsAt: null,         // ms epoch (server time)
   timerDuration: 0,          // seconds (last set)
+  resolvedRounds: Object.create(null),
 };
 
 const teams = new Map();     // teamId -> { id,name,avatar,coins,quizJoker,joinedAt }
@@ -27,6 +28,7 @@ function serializeState(){
     phase: state.phase,
     currentCategory: state.currentCategory,
     roundIndex: state.roundIndex,
+    roundResolved: isCurrentRoundResolved(),
     stakes: state.stakes,
     categoryPot: state.categoryPot,
     carryRound: state.carryRound,
@@ -38,6 +40,24 @@ function serializeState(){
   };
 }
 function serializeTeams(){ return Array.from(teams.values()).map(t=>({...t})); }
+function currentRoundKey(){
+  if (!state.currentCategory) return null;
+  return state.currentCategory + ':' + state.roundIndex;
+}
+function isCurrentRoundResolved(){
+  const key = currentRoundKey();
+  return key ? !!state.resolvedRounds[key] : false;
+}
+function setCurrentRoundResolved(flag){
+  const key = currentRoundKey();
+  if (!key) return;
+  if (flag) {
+    state.resolvedRounds[key] = true;
+  } else {
+    delete state.resolvedRounds[key];
+  }
+}
+
 
 function emitState(io){ io.emit('state:update', serializeState()); }
 function emitTeams(io){ io.emit('teamsUpdated', serializeTeams()); }
@@ -55,9 +75,9 @@ export const game = {
       teams.set(id, {
         id,
         name: name?.trim() || `Team ${teams.size+1}`,
-        avatar: avatar || '❓',
+        avatar: avatar || 'â“',
         coins: 24,                  // Startbank
-        quizJoker: 1,               // 1 Joker fürs Quiz
+        quizJoker: 1,               // 1 Joker fÃ¼rs Quiz
         joinedAt: Date.now(),
       });
     } else {
@@ -83,7 +103,7 @@ export const game = {
     emitState(io);
   },
 
-  // submissions – rohdaten anzeigen, buzz mit buzzTs
+  // submissions â€“ rohdaten anzeigen, buzz mit buzzTs
   teamSubmit(io, socket, category, payload){
     if(state.phase!=='CATEGORY' || state.currentCategory!==category) return;
     const id = ensureTeam(socket);
@@ -93,7 +113,7 @@ export const game = {
       if (!prev.buzzTs) next.buzzTs = Date.now();
       next.buzz = true;
     }
-    // Erst-Zeitpunkt für Fuchs (Speed Messung)
+    // Erst-Zeitpunkt fÃ¼r Fuchs (Speed Messung)
     if(category === 'Fuchs' && typeof payload?.guess === 'string' && !prev.firstGuessTs){
       next.firstGuessTs = Date.now();
     }
@@ -124,12 +144,13 @@ export const game = {
     state.categoryPot = 0;
     state.carryRound = 0;
     state.submissions = {};
-  state.roundStartTs = null; // wird bei Lock gesetzt
+    state.roundStartTs = null; // wird bei Lock gesetzt
+    state.resolvedRounds = Object.create(null);
     emitAll(io);
   },
 
   adminLockStakes(io){
-    // Einsätze abbuchen & Joker verbrauchen
+    // Einsaetze abbuchen & Joker verbrauchen
     for(const [tid, s] of Object.entries(state.stakes)){
       const t = teams.get(tid); if(!t) continue;
       t.coins = Math.max(0, t.coins - (s.stake||0)); // Einsatz
@@ -140,30 +161,58 @@ export const game = {
     const jokerExtra = Object.values(state.stakes).reduce((a,s)=>a+(s.useJoker?(s.stake||0):0),0);
     state.categoryPot = sumEinsatz + jokerExtra + 3;
     state.phase = 'CATEGORY';
-  state.roundStartTs = Date.now();
+    state.roundStartTs = Date.now();
+    setCurrentRoundResolved(false);
     emitAll(io);
   },
 
-  adminResolveRound(io, { winnerId }){
+  adminResolveRound(io, { winnerId, winnerIds }){
     if(state.phase!=='CATEGORY') return;
+    if(isCurrentRoundResolved()) return;
     const payout = Math.floor(state.categoryPot / ROUNDS_PER_CATEGORY); // CP/3
-    if(winnerId){
-      const t = teams.get(winnerId);
-      if(t){
-        t.coins += (payout + state.carryRound);
-        state.carryRound = 0;
-      }
+    const chosenRaw = Array.isArray(winnerIds) ? winnerIds : [];
+    const uniqueIds = [...new Set(chosenRaw.filter((id) => id !== null && id !== undefined).map((id) => String(id)))].filter((id) => teams.has(id));
+    const totalPot = payout + state.carryRound;
+    let resolved = false;
+
+    if (uniqueIds.length > 1) {
+      const share = uniqueIds.length ? Math.floor(totalPot / uniqueIds.length) : 0;
+      const remainder = uniqueIds.length ? totalPot % uniqueIds.length : 0;
+      uniqueIds.forEach((id, idx) => {
+        const t = teams.get(id);
+        if (!t) return;
+        t.coins += share + (idx < remainder ? 1 : 0);
+      });
+      state.carryRound = 0;
+      resolved = true;
     } else {
-      state.carryRound += payout; // rollt
+      const rawSingle = uniqueIds.length === 1 ? uniqueIds[0] : winnerId;
+      const singleId = rawSingle !== null && rawSingle !== undefined ? String(rawSingle) : null;
+      if (singleId && teams.has(singleId)) {
+        const t = teams.get(singleId);
+        if (t) {
+          t.coins += totalPot;
+          state.carryRound = 0;
+          resolved = true;
+        }
+      } else if (winnerId === null) {
+        state.carryRound += payout;
+        resolved = true;
+      }
     }
-    emitAll(io);
+
+    if (resolved) {
+      setCurrentRoundResolved(true);
+      emitAll(io);
+    }
   },
 
   adminRoundNext(io){
     if(state.phase!=='CATEGORY') return;
     state.roundIndex = Math.min(ROUNDS_PER_CATEGORY-1, state.roundIndex+1);
     state.submissions = {}; // neue Runde
-  state.roundStartTs = Date.now();
+    state.roundStartTs = Date.now();
+    setCurrentRoundResolved(false);
     emitState(io);
   },
 
@@ -171,7 +220,7 @@ export const game = {
     if(state.phase!=='CATEGORY') return;
     state.roundIndex = Math.max(0, state.roundIndex-1);
     state.submissions = {};
-  state.roundStartTs = Date.now();
+    state.roundStartTs = Date.now();
     emitState(io);
   },
 
@@ -183,7 +232,8 @@ export const game = {
     state.categoryPot = 0;
     state.carryRound = 0;
     state.submissions = {};
-  state.roundStartTs = null;
+    state.roundStartTs = null;
+    state.resolvedRounds = Object.create(null);
     emitAll(io);
   },
 
@@ -204,3 +254,6 @@ export const game = {
     emitState(io);
   },
 };
+
+
+

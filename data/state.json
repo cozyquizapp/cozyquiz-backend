@@ -6,10 +6,10 @@
   "categoryPot": 0,
   "carryRound": 0,
   "submissions": {},
-  "joinCode": "773065",
+  "joinCode": null,
   "teamLimit": 5,
-  "timerEndsAt": 1757612861277,
-  "timerDuration": 60,
+  "timerEndsAt": null,
+  "timerDuration": 0,
   "timerPausedRemaining": 0,
   "elch": {
     "category": null,
