@@ -82,6 +82,24 @@ const state = {
   categoryEarnings: {},
 };
 
+function roundKeyFor(category, roundIdx) {
+  if (!category && category !== 0) return null;
+  return `${category}:${roundIdx}`;
+}
+function currentRoundKey() {
+  return roundKeyFor(state.currentCategory, state.roundIndex);
+}
+function isRoundResolved(key = currentRoundKey()) {
+  return key ? !!state.resolvedRounds[key] : false;
+}
+function markRoundResolved(flag, key = currentRoundKey()) {
+  if (!key) return;
+  if (flag) {
+    state.resolvedRounds[key] = true;
+  } else {
+    delete state.resolvedRounds[key];
+  }
+}
 const teams = new Map();     // teamId -> { id,name,avatar,coins,quizJoker,joinedAt }
 
 // VerfÃ¼gbare Avatar-Dateipfade (mÃ¼ssen mit frontend/public/avatars Ã¼bereinstimmen)
@@ -165,6 +183,7 @@ function serializeState(){
     phase: state.phase,
     currentCategory: state.currentCategory,
     roundIndex: state.roundIndex,
+    roundResolved: isRoundResolved(),
     stakes: state.stakes,
     categoryPot: state.categoryPot,
     carryRound: state.carryRound,
@@ -309,6 +328,7 @@ export const game = {
     state.submissions = {};
   state.roundWins = {};
   state.categoryEarnings = {};
+    state.resolvedRounds = Object.create(null);
 
     // ðŸ¦Œ Elch init, falls Elch gestartet wird
     state.elch = {
@@ -349,32 +369,65 @@ export const game = {
     markDirty();
   },
 
-  adminResolveRound(io, { winnerId }) {
+  adminResolveRound(io, { winnerId, winnerIds }) {
     if(state.phase!=='CATEGORY') return;
+    if (isRoundResolved()) return;
     const payout = Math.floor(state.categoryPot / ROUNDS_PER_CATEGORY); // CP/3
-    if(winnerId){
-      const t = teams.get(winnerId);
-      if(t){
-  const gain = (payout + state.carryRound);
-  t.coins += gain;
-  state.carryRound = 0;
-  // Rundensieg zÃ¤hlen (legacy) + Earnings verbuchen
-  state.roundWins[winnerId] = (state.roundWins[winnerId]||0) + 1;
-  state.categoryEarnings[winnerId] = (state.categoryEarnings[winnerId]||0) + gain;
-      }
+    const chosenRaw = Array.isArray(winnerIds) ? winnerIds : [];
+    const uniqueIds = [...new Set(chosenRaw.filter(id => id !== null && id !== undefined).map(id => String(id)))].filter(id => teams.has(id));
+    const totalPot = payout + state.carryRound;
+    let resolved = false;
+    let resolvedWinnerId = null;
+    let resolvedWinnerIds = [];
+
+    if (uniqueIds.length > 1) {
+      const share = uniqueIds.length ? Math.floor(totalPot / uniqueIds.length) : 0;
+      const remainder = uniqueIds.length ? totalPot % uniqueIds.length : 0;
+      uniqueIds.forEach((id, idx) => {
+        const team = teams.get(id);
+        if (!team) return;
+        const gain = share + (idx < remainder ? 1 : 0);
+        team.coins += gain;
+        state.roundWins[id] = (state.roundWins[id]||0) + 1;
+        state.categoryEarnings[id] = (state.categoryEarnings[id]||0) + gain;
+      });
+      state.carryRound = 0;
+      resolved = true;
+      resolvedWinnerIds = uniqueIds;
     } else {
-      state.carryRound += payout; // rollt
+      const rawSingle = uniqueIds.length === 1 ? uniqueIds[0] : winnerId;
+      const singleId = rawSingle !== null && rawSingle !== undefined ? String(rawSingle) : null;
+      if (singleId && teams.has(singleId)) {
+        const team = teams.get(singleId);
+        if (team) {
+          const gain = totalPot;
+          team.coins += gain;
+          state.carryRound = 0;
+          state.roundWins[singleId] = (state.roundWins[singleId]||0) + 1;
+          state.categoryEarnings[singleId] = (state.categoryEarnings[singleId]||0) + gain;
+          resolved = true;
+          resolvedWinnerId = singleId;
+          resolvedWinnerIds = [singleId];
+        }
+      } else if (winnerId === null) {
+        state.carryRound += payout; // rollt weiter
+        resolved = true;
+      }
     }
-    // --- NEU: Ergebnis-Event fÃ¼r Teams ---
-    io.emit('result:announce', {
-      winnerId,
-      category: state.currentCategory,
-      roundIndex: state.roundIndex,
-      payout,
-      carry: state.carryRound,
-    });
-    emitAll(io);
-    markDirty();
+
+    if (resolved) {
+      markRoundResolved(true);
+      io.emit('result:announce', {
+        winnerId: resolvedWinnerId,
+        winnerIds: resolvedWinnerIds,
+        category: state.currentCategory,
+        roundIndex: state.roundIndex,
+        payout,
+        carry: state.carryRound,
+      });
+      emitAll(io);
+      markDirty();
+    }
   },
 
   adminRoundNext(io){
@@ -432,6 +485,7 @@ export const game = {
     state.submissions = {};
     state.roundWins = {};
     state.categoryEarnings = {};
+    state.resolvedRounds = Object.create(null);
 
     // Elch komplett zurÃ¼cksetzen
     state.elch = {
@@ -458,6 +512,7 @@ export const game = {
     state.submissions = {};
     state.roundWins = {};
     state.categoryEarnings = {};
+    state.resolvedRounds = Object.create(null);
     state.elch = { category:null, used:[], buzzOrder:[], buzzLocked:false, exhausted:false };
     emitAll(io);
     markDirty();

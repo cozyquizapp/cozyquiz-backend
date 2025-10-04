@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "id": "team-jana",
+    "name": "Team Jana",
+    "avatar": "/avatars/teamjana.png",
+    "coins": 24,
+    "quizJoker": 1,
+    "joinedAt": 1759435644397
+  },
+  {
+    "id": "team-vknawb",
+    "name": "Team vknawb",
+    "avatar": "/avatars/capybara.png",
+    "coins": 24,
+    "quizJoker": 1,
+    "joinedAt": 1759435669853
+  },
+  {
+    "id": "team-jenny",
+    "name": "Team Jenny",
+    "avatar": "/avatars/teamjenny.png",
+    "coins": 24,
+    "quizJoker": 1,
+    "joinedAt": 1759435672261
+  }
+]
