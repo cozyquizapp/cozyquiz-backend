@@ -1,0 +1,26 @@
+{
+  "phase": "LOBBY",
+  "currentCategory": null,
+  "roundIndex": 0,
+  "roundResolved": false,
+  "stakes": {},
+  "categoryPot": 0,
+  "carryRound": 0,
+  "submissions": {},
+  "fuchsHistory": {},
+  "joinCode": "297842",
+  "teamLimit": 5,
+  "timerEndsAt": null,
+  "timerDuration": 60,
+  "timerPausedRemaining": 0,
+  "elch": {
+    "category": null,
+    "used": [],
+    "buzzOrder": [],
+    "buzzLocked": false,
+    "exhausted": false,
+    "phase": "IDLE",
+    "buzzAnswerEndsAt": null
+  },
+  "raceMode": "POST"
+}

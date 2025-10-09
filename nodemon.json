@@ -1,0 +1,13 @@
+{
+  "watch": [
+    "server.js",
+    "src/**/*.js"
+  ],
+  "ignore": [
+    "data/**",
+    "**/data/**",
+    "../frontend/**"
+  ],
+  "ext": "js",
+  "delay": "200ms"
+}

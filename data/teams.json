@@ -1,0 +1,26 @@
+[
+  {
+    "id": "team-martin",
+    "name": "Team Martin",
+    "avatar": "/avatars/teammartin.png",
+    "coins": 25,
+    "quizJoker": 2,
+    "joinedAt": 1759784403625
+  },
+  {
+    "id": "team-jenny",
+    "name": "Team Jenny",
+    "avatar": "/avatars/teamjenny.png",
+    "coins": 24,
+    "quizJoker": 1,
+    "joinedAt": 1759784436316
+  },
+  {
+    "id": "team-jana",
+    "name": "Team Jana",
+    "avatar": "/avatars/teamjana.png",
+    "coins": 25,
+    "quizJoker": 0,
+    "joinedAt": 1759784540393
+  }
+]
