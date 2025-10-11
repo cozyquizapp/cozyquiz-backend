@@ -4,7 +4,7 @@
     "name": "Team Martin",
     "avatar": "/avatars/teammartin.png",
     "coins": 0,
-    "quizJoker": 2,
+    "quizJoker": 1,
     "joinedAt": 1759784403625
   },
   {
@@ -19,7 +19,7 @@
     "id": "team-jenny",
     "name": "Team Jenny",
     "avatar": "/avatars/teamjenny.png",
-    "coins": 24,
+    "coins": 0,
     "quizJoker": 1,
     "joinedAt": 1760191037092
   }
