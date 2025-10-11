@@ -16,11 +16,11 @@
     "joinedAt": 1760178054233
   },
   {
-    "id": "team-1poyid",
-    "name": "Jojo",
-    "avatar": "/avatars/waschbaer.png",
-    "coins": 0,
+    "id": "team-jenny",
+    "name": "Team Jenny",
+    "avatar": "/avatars/teamjenny.png",
+    "coins": 24,
     "quizJoker": 1,
-    "joinedAt": 1760178088897
+    "joinedAt": 1760191037092
   }
 ]
