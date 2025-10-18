@@ -873,6 +873,7 @@ function registerHandlers(nsp, socket) {
 
     let card = null;
     let mult = null;
+    let derivedFromCard = false;
 
     const player = room.playersByTeamId.get(teamId);
     if (!isFinite(numeric)) {
@@ -881,11 +882,13 @@ function registerHandlers(nsp, socket) {
       const factor = mult?.factor ?? 1;
       if (card && isFinite(card.trueValue) && isFinite(factor)) {
         numeric = card.trueValue * factor;
+        derivedFromCard = true;
       }
     } else {
       // numeric provided: still try to fill card/mult for UI if IDs exist
       card = player?.hand?.find(c => c.id === cardId) || null;
       mult = player?.multipliers?.find(m => m.id === multiplierId) || null;
+      derivedFromCard = false;
     }
 
     // If a joker was selected, ensure player hasn't exceeded joker usage limit (2 per player per game)
@@ -908,7 +911,9 @@ function registerHandlers(nsp, socket) {
     // Normalize submission into SI units for scoring. If client provided a unit with numeric guess, use it.
     let siValue = numeric;
     try {
-      if (typeof value === 'object' && value !== null && value.amount != null && value.unit) {
+      if (derivedFromCard) {
+        siValue = Number(numeric);
+      } else if (typeof value === 'object' && value !== null && value.amount != null && value.unit) {
         // structured guess { amount: number, unit: 'km' }
         siValue = toSI(card || {}, Number(value.amount), value.unit);
       } else if (guessUnit) {

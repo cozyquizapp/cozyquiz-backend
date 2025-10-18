@@ -97,7 +97,9 @@ export function loadItemsFromCSV() {
   const displayUnit = row.display_unit || '';
       const funFact = row.fun_fact || row.FunFact || '';
       const emoji = row.emoji || row.Emoji || '';
-      const difficulty = (row.difficulty || row.Difficulty || 'medium').toLowerCase();
+      const difficultyRaw = row.difficulty || row.Difficulty || 'medium';
+      const difficulty = String(difficultyRaw).toLowerCase();
+      if (difficulty.startsWith('hard')) continue;
       const typ = row.kind || row.Typ || '';
       const kurzname = row.short_name || '';
       const notiz = row.note || row.Notiz || '';
